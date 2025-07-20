@@ -16,45 +16,50 @@ const db = new pg.Client({
 const app = express();
 const port = 3000;
 
-db.connect();
-
-let quiz = [];
-db.query("SELECT * FROM capitals", (err, res) => {
-  if (err) {
-    console.error("Error executing query", err.stack);
-  } else {
-    quiz = res.rows;
-  }
-  db.end();
-});
-
-let totalCorrect = 0;
-
 // Middleware
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static("public"));
 
+let quiz = [];
 let currentQuestion = {};
+let totalCorrect = 0;
+
+async function loadDataAndStartServer() {
+  try {
+    await db.connect();
+    const result = await db.query("SELECT * FROM capitals");
+    quiz = result.rows;
+
+    console.log(`Loaded ${quiz.length} questions.`);
+
+    app.listen(port, () => {
+      console.log(`Server is running at http://localhost:${port}`);
+    });
+
+  } catch (err) {
+    console.error("Failed to load data or start server:", err);
+  }
+}
 
 // GET home page
 app.get("/", async (req, res) => {
   totalCorrect = 0;
   await nextQuestion();
-  console.log(currentQuestion);
   res.render("index.ejs", { question: currentQuestion });
 });
 
-// POST a new post
-app.post("/submit", (req, res) => {
+// POST answer
+app.post("/submit", async (req, res) => {
   let answer = req.body.answer.trim();
   let isCorrect = false;
+
   if (currentQuestion.capital.toLowerCase() === answer.toLowerCase()) {
     totalCorrect++;
-    console.log(totalCorrect);
     isCorrect = true;
   }
 
-  nextQuestion();
+  await nextQuestion();
+
   res.render("index.ejs", {
     question: currentQuestion,
     wasCorrect: isCorrect,
@@ -62,10 +67,15 @@ app.post("/submit", (req, res) => {
   });
 });
 
+// Randomly pick next question
 async function nextQuestion() {
-  const randomCountry = quiz[Math.floor(Math.random() * quiz.length)];
-  currentQuestion = randomCountry;
+  const randomIndex = Math.floor(Math.random() * quiz.length);
+  currentQuestion = quiz[randomIndex];
 }
+
+// Start the app only after loading data
+loadDataAndStartServer();
+
 
 app.listen(port, () => {
   console.log(`Server is running at http://localhost:${port}`);
