@@ -30,23 +30,35 @@ async function loadDataAndStartServer() {
     const result = await db.query("SELECT * FROM capitals");
     quiz = result.rows;
 
-    console.log(`Loaded ${quiz.length} questions.`);
+    if (quiz.length === 0) {
+      console.error("No data loaded from DB.");
+      process.exit(1);
+    }
 
     app.listen(port, () => {
       console.log(`Server is running at http://localhost:${port}`);
     });
-
   } catch (err) {
-    console.error("Failed to load data or start server:", err);
+    console.error("Failed to start server:", err);
+    process.exit(1);
   }
 }
+
+loadDataAndStartServer();
+
 
 // GET home page
 app.get("/", async (req, res) => {
   totalCorrect = 0;
   await nextQuestion();
+
+  if (!currentQuestion) {
+    return res.send("No questions loaded. Try again later.");
+  }
+
   res.render("index.ejs", { question: currentQuestion });
 });
+
 
 // POST answer
 app.post("/submit", async (req, res) => {
@@ -69,9 +81,15 @@ app.post("/submit", async (req, res) => {
 
 // Randomly pick next question
 async function nextQuestion() {
+  if (quiz.length === 0) {
+    console.log("Quiz data not loaded yet.");
+    currentQuestion = null;
+    return;
+  }
   const randomIndex = Math.floor(Math.random() * quiz.length);
   currentQuestion = quiz[randomIndex];
 }
+
 
 // Start the app only after loading data
 loadDataAndStartServer();
